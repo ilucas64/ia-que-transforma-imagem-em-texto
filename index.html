@@ -67,6 +67,7 @@
             margin-bottom: 20px;
             border: 2px solid #ccc;
             border-radius: 5px;
+            display: none;
         }
         #output, #description {
             width: 80%;
@@ -111,7 +112,7 @@
 <body>
     <h1>Transformar Imagem em Texto e Descrição</h1>
     <input type="file" id="imageInput" accept="image/*">
-    <img id="preview" src="" alt="Prévia da imagem" style="display: none;">
+    <img id="preview" src="" alt="Prévia da imagem">
     <button onclick="processImage()">Processar Imagem</button>
     <progress id="progress" value="0" max="100"></progress>
     <div class="section-title">Texto Extraído:</div>
@@ -129,21 +130,23 @@
 
         imageInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
+            output.textContent = 'Aguardando imagem para extrair texto...';
+            preview.style.display = 'none';
             if (file) {
                 try {
                     const url = URL.createObjectURL(file);
                     preview.src = url;
-                    preview.style.display = 'block';
+                    preview.onload = () => {
+                        preview.style.display = 'block';
+                    };
                     preview.onerror = () => {
                         preview.style.display = 'none';
-                        output.textContent = 'Erro: Não foi possível carregar a imagem para visualização.';
+                        output.textContent = 'Erro: Não foi possível carregar a imagem para visualização. Tente outro arquivo (JPG, PNG ou WEBP).';
                     };
                 } catch (e) {
                     preview.style.display = 'none';
                     output.textContent = 'Erro ao carregar a imagem: ' + e.message;
                 }
-            } else {
-                preview.style.display = 'none';
             }
         });
 
@@ -193,24 +196,50 @@
                             const fileSize = (file.size / 1024).toFixed(2) + ' KB';
                             const dimensions = `${img.width} x ${img.height} pixels`;
                             const fileType = file.type.split('/')[1].toUpperCase();
-                            let desc = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize} e dimensões ${dimensions}.\n`;
+                            let desc = `Esta é uma imagem ${fileType} de ${fileSize}, com ${dimensions}.\n`;
 
                             // Análise de cores
                             try {
                                 const colors = colorThief.getColor(img);
                                 const palette = colorThief.getPalette(img, 3);
                                 const rgbToHex = (rgb) => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
-                                desc += `Cor predominante: ${rgbToHex(colors)}.\n` +
-                                        `Outras cores presentes: ${palette.map(rgbToHex).join(', ')}.\n`;
+                                desc += `A cor predominante é ${rgbToHex(colors)}.\n` +
+                                        `Outras cores visíveis incluem: ${palette.map(rgbToHex).join(', ')}.\n`;
+
+                                // Sugestão de material baseado em cores
+                                const r = colors[0], g = colors[1], b = colors[2];
+                                if (r > 150 && g > 150 && b > 150) {
+                                    desc += 'A imagem parece ter um objeto brilhante, possivelmente metálico, como uma moeda prateada.\n';
+                                } else if (r > 150 && g > 100 && b < 100) {
+                                    desc += 'A imagem parece ter um objeto com tons dourados, possivelmente uma moeda de cor bronzeada.\n';
+                                }
                             } catch (e) {
                                 desc += 'Não foi possível analisar as cores da imagem.\n';
                             }
 
                             // Contexto para moedas ou objetos pequenos
                             if (img.width === img.height && img.width <= 1500) {
-                                desc += 'A imagem parece mostrar um objeto pequeno, possivelmente uma moeda ou item similar.\n';
+                                desc += 'A imagem mostra um objeto pequeno, provavelmente uma moeda, com detalhes visíveis.\n';
                             } else {
-                                desc += 'Contém texto que foi extraído acima.\n';
+                                desc += 'A imagem contém texto que foi extraído acima.\n';
+                            }
+
+                            // Análise de brilho
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0);
+                                const imageData = ctx.getImageData(0, 0, img.width, img.height).data;
+                                let brightness = 0;
+                                for (let i = 0; i < imageData.length; i += 4) {
+                                    brightness += (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
+                                }
+                                brightness /= (imageData.length / 4);
+                                desc += brightness > 128 ? 'O fundo da imagem é claro, destacando o objeto.\n' : 'O fundo da imagem é escuro, contrastando com o objeto.\n';
+                            } catch (e) {
+                                desc += 'Não foi possível analisar o brilho da imagem.\n';
                             }
 
                             description.textContent = desc;
@@ -221,7 +250,7 @@
                     img.onerror = () => {
                         const fileSize = (file.size / 1024).toFixed(2) + ' KB';
                         const fileType = file.type.split('/')[1].toUpperCase();
-                        description.textContent = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize}.\n` +
+                        description.textContent = `Esta é uma imagem ${fileType} de ${fileSize}.\n` +
                                                  'Não foi possível carregar a imagem para análise detalhada.';
                     };
                 } catch (e) {
