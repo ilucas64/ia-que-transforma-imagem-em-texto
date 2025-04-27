@@ -102,6 +102,10 @@
             margin: 10px 0;
             display: none;
         }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -126,8 +130,20 @@
         imageInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
-                preview.src = URL.createObjectURL(file);
-                preview.style.display = 'block';
+                try {
+                    const url = URL.createObjectURL(file);
+                    preview.src = url;
+                    preview.style.display = 'block';
+                    preview.onerror = () => {
+                        preview.style.display = 'none';
+                        output.textContent = 'Erro: Não foi possível carregar a imagem para visualização.';
+                    };
+                } catch (e) {
+                    preview.style.display = 'none';
+                    output.textContent = 'Erro ao carregar a imagem: ' + e.message;
+                }
+            } else {
+                preview.style.display = 'none';
             }
         });
 
@@ -145,66 +161,75 @@
             progress.value = 0;
 
             try {
-                // Extrair texto com Tesseract.js
-                const { data: { text } } = await Tesseract.recognize(
-                    file,
-                    'por',
-                    {
-                        logger: (m) => {
-                            if (m.status === 'recognizing text') {
-                                progress.value = m.progress * 100;
-                            }
-                        },
-                        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-                        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-                        workerBlobURL: false,
-                        workerCount: 1
-                    }
-                );
-                output.textContent = text || 'Nenhum texto reconhecido.';
+                // Inicializar Tesseract com worker local
+                const worker = await Tesseract.createWorker('por', 1, {
+                    logger: (m) => {
+                        if (m.status === 'recognizing text') {
+                            progress.value = m.progress * 100;
+                        }
+                    },
+                    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
+                    workerBlobURL: true
+                });
+
+                try {
+                    // Extrair texto
+                    const { data: { text } } = await worker.recognize(file);
+                    output.textContent = text || 'Nenhum texto reconhecido.';
+                    await worker.terminate();
+                } catch (e) {
+                    throw new Error('Erro no reconhecimento de texto: ' + e.message);
+                }
+
                 progress.style.display = 'none';
 
                 // Descrever imagem
-                const img = new Image();
-                img.src = URL.createObjectURL(file);
-
-                // Garantir que a imagem esteja carregada
-                img.onload = () => {
-                    try {
-                        // Informações básicas
-                        const fileSize = (file.size / 1024).toFixed(2) + ' KB';
-                        const dimensions = `${img.width} x ${img.height} pixels`;
-                        const fileType = file.type.split('/')[1].toUpperCase();
-
-                        // Tentar obter cores
-                        let desc = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize} e dimensões ${dimensions}.\n`;
+                try {
+                    const img = new Image();
+                    img.src = URL.createObjectURL(file);
+                    img.crossOrigin = 'Anonymous';
+                    img.onload = () => {
                         try {
-                            const colors = colorThief.getColor(img);
-                            const palette = colorThief.getPalette(img, 3);
-                            const rgbToHex = (rgb) => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
-                            desc += `Cor predominante: ${rgbToHex(colors)}.\n` +
-                                    `Outras cores presentes: ${palette.map(rgbToHex).join(', ')}.\n`;
+                            const fileSize = (file.size / 1024).toFixed(2) + ' KB';
+                            const dimensions = `${img.width} x ${img.height} pixels`;
+                            const fileType = file.type.split('/')[1].toUpperCase();
+                            let desc = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize} e dimensões ${dimensions}.\n`;
+
+                            // Análise de cores
+                            try {
+                                const colors = colorThief.getColor(img);
+                                const palette = colorThief.getPalette(img, 3);
+                                const rgbToHex = (rgb) => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
+                                desc += `Cor predominante: ${rgbToHex(colors)}.\n` +
+                                        `Outras cores presentes: ${palette.map(rgbToHex).join(', ')}.\n`;
+                            } catch (e) {
+                                desc += 'Não foi possível analisar as cores da imagem.\n';
+                            }
+
+                            // Contexto para moedas ou objetos pequenos
+                            if (img.width === img.height && img.width <= 1500) {
+                                desc += 'A imagem parece mostrar um objeto pequeno, possivelmente uma moeda ou item similar.\n';
+                            } else {
+                                desc += 'Contém texto que foi extraído acima.\n';
+                            }
+
+                            description.textContent = desc;
                         } catch (e) {
-                            desc += 'Não foi possível analisar as cores da imagem.\n';
+                            description.textContent = 'Erro ao descrever a imagem: ' + e.message;
                         }
-                        desc += 'A imagem contém texto que foi extraído acima.';
-
-                        description.textContent = desc;
-                    } catch (error) {
-                        description.textContent = `Erro ao descrever a imagem: ${error.message}`;
-                    }
-                };
-
-                // Caso o onload não dispare
-                img.onerror = () => {
-                    const fileSize = (file.size / 1024).toFixed(2) + ' KB';
-                    const fileType = file.type.split('/')[1].toUpperCase();
-                    description.textContent = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize}.\n` +
-                                             'Não foi possível carregar a imagem para análise detalhada.';
-                };
+                    };
+                    img.onerror = () => {
+                        const fileSize = (file.size / 1024).toFixed(2) + ' KB';
+                        const fileType = file.type.split('/')[1].toUpperCase();
+                        description.textContent = `A imagem é um arquivo ${fileType} com tamanho de ${fileSize}.\n` +
+                                                 'Não foi possível carregar a imagem para análise detalhada.';
+                    };
+                } catch (e) {
+                    description.textContent = 'Erro ao descrever a imagem: ' + e.message;
+                }
             } catch (error) {
-                output.textContent = 'Erro ao processar a imagem: ' + error.message;
-                description.textContent = 'Erro ao analisar a imagem.';
+                output.textContent = 'Erro ao processar a imagem: ' + error.message + '. Tente usar uma imagem JPG, PNG ou WEBP menor.';
+                description.textContent = 'Erro ao analisar a imagem: ' + error.message + '. Tente novamente com outra imagem.';
                 progress.style.display = 'none';
             }
         }
