@@ -138,14 +138,15 @@
                     preview.src = url;
                     preview.onload = () => {
                         preview.style.display = 'block';
+                        output.textContent = 'Imagem carregada, clique em "Processar Imagem" para analisar.';
                     };
                     preview.onerror = () => {
                         preview.style.display = 'none';
-                        output.textContent = 'Erro: Não foi possível carregar a imagem para visualização. Tente outro arquivo (JPG, PNG ou WEBP).';
+                        output.textContent = 'Erro: Não foi possível carregar a imagem. Tente um arquivo JPG, PNG ou WEBP válido.';
                     };
                 } catch (e) {
                     preview.style.display = 'none';
-                    output.textContent = 'Erro ao carregar a imagem: ' + e.message;
+                    output.textContent = 'Erro ao carregar a imagem: ' + e.message + '. Tente outro arquivo.';
                 }
             }
         });
@@ -163,6 +164,7 @@
             progress.style.display = 'block';
             progress.value = 0;
 
+            let extractedText = '';
             try {
                 // Inicializar Tesseract com worker local
                 const worker = await Tesseract.createWorker('por', 1, {
@@ -178,7 +180,8 @@
                 try {
                     // Extrair texto
                     const { data: { text } } = await worker.recognize(file);
-                    output.textContent = text || 'Nenhum texto reconhecido.';
+                    extractedText = text || 'Nenhum texto reconhecido.';
+                    output.textContent = extractedText;
                     await worker.terminate();
                 } catch (e) {
                     throw new Error('Erro no reconhecimento de texto: ' + e.message);
@@ -196,35 +199,51 @@
                             const fileSize = (file.size / 1024).toFixed(2) + ' KB';
                             const dimensions = `${img.width} x ${img.height} pixels`;
                             const fileType = file.type.split('/')[1].toUpperCase();
-                            let desc = `Esta é uma imagem ${fileType} de ${fileSize}, com ${dimensions}.\n`;
+                            let desc = `Você enviou uma imagem ${fileType} de ${fileSize}, com ${dimensions}.\n`;
 
                             // Análise de cores
+                            let isMetallic = false;
                             try {
                                 const colors = colorThief.getColor(img);
                                 const palette = colorThief.getPalette(img, 3);
                                 const rgbToHex = (rgb) => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
-                                desc += `A cor predominante é ${rgbToHex(colors)}.\n` +
-                                        `Outras cores visíveis incluem: ${palette.map(rgbToHex).join(', ')}.\n`;
+                                const colorNames = {
+                                    '#C0C0C0': 'prateado brilhante',
+                                    '#FFD700': 'dourado',
+                                    '#FFFFFF': 'branco',
+                                    '#000000': 'preto',
+                                    '#333333': 'cinza escuro'
+                                };
+                                const mainColorHex = rgbToHex(colors);
+                                const mainColorName = colorNames[mainColorHex] || mainColorHex;
+                                desc += `O objeto principal tem uma cor ${mainColorName}.\n` +
+                                        `Outras cores visíveis: ${palette.map(rgb => colorNames[rgbToHex(rgb)] || rgbToHex(rgb)).join(', ')}.\n`;
 
-                                // Sugestão de material baseado em cores
+                                // Sugestão de material
                                 const r = colors[0], g = colors[1], b = colors[2];
                                 if (r > 150 && g > 150 && b > 150) {
-                                    desc += 'A imagem parece ter um objeto brilhante, possivelmente metálico, como uma moeda prateada.\n';
+                                    desc += 'Parece um objeto metálico, como uma moeda prateada brilhante.\n';
+                                    isMetallic = true;
                                 } else if (r > 150 && g > 100 && b < 100) {
-                                    desc += 'A imagem parece ter um objeto com tons dourados, possivelmente uma moeda de cor bronzeada.\n';
+                                    desc += 'Parece um objeto metálico, como uma moeda dourada ou bronzeada.\n';
+                                    isMetallic = true;
                                 }
                             } catch (e) {
-                                desc += 'Não foi possível analisar as cores da imagem.\n';
+                                desc += 'Não foi possível identificar as cores da imagem.\n';
                             }
 
-                            // Contexto para moedas ou objetos pequenos
+                            // Contexto para moedas
                             if (img.width === img.height && img.width <= 1500) {
-                                desc += 'A imagem mostra um objeto pequeno, provavelmente uma moeda, com detalhes visíveis.\n';
+                                desc += 'A imagem mostra um objeto pequeno, provavelmente uma moeda, com detalhes nítidos.\n';
+                                // Análise do texto extraído
+                                if (extractedText.match(/\d+\s*(real|reais)/i) || extractedText.match(/brasil/i)) {
+                                    desc += 'O texto sugere que pode ser uma moeda brasileira, possivelmente com um valor como "1 real".\n';
+                                }
                             } else {
                                 desc += 'A imagem contém texto que foi extraído acima.\n';
                             }
 
-                            // Análise de brilho
+                            // Análise de brilho e fundo
                             try {
                                 const canvas = document.createElement('canvas');
                                 canvas.width = img.width;
@@ -237,9 +256,11 @@
                                     brightness += (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
                                 }
                                 brightness /= (imageData.length / 4);
-                                desc += brightness > 128 ? 'O fundo da imagem é claro, destacando o objeto.\n' : 'O fundo da imagem é escuro, contrastando com o objeto.\n';
+                                desc += brightness > 128 ? 
+                                        'O fundo é claro, destacando a moeda ou objeto central.\n' : 
+                                        'O fundo é escuro, criando um contraste com a moeda ou objeto.\n';
                             } catch (e) {
-                                desc += 'Não foi possível analisar o brilho da imagem.\n';
+                                desc += 'Não foi possível analisar o brilho do fundo.\n';
                             }
 
                             description.textContent = desc;
@@ -250,14 +271,14 @@
                     img.onerror = () => {
                         const fileSize = (file.size / 1024).toFixed(2) + ' KB';
                         const fileType = file.type.split('/')[1].toUpperCase();
-                        description.textContent = `Esta é uma imagem ${fileType} de ${fileSize}.\n` +
+                        description.textContent = `Você enviou uma imagem ${fileType} de ${fileSize}.\n` +
                                                  'Não foi possível carregar a imagem para análise detalhada.';
                     };
                 } catch (e) {
                     description.textContent = 'Erro ao descrever a imagem: ' + e.message;
                 }
             } catch (error) {
-                output.textContent = 'Erro ao processar a imagem: ' + error.message + '. Tente usar uma imagem JPG, PNG ou WEBP menor.';
+                output.textContent = 'Erro ao processar a imagem: ' + error.message + '. Tente uma imagem JPG, PNG ou WEBP menor.';
                 description.textContent = 'Erro ao analisar a imagem: ' + error.message + '. Tente novamente com outra imagem.';
                 progress.style.display = 'none';
             }
