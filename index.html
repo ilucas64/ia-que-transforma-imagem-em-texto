@@ -137,11 +137,12 @@
         async function preprocessImage(file) {
             try {
                 const image = await Jimp.read(URL.createObjectURL(file));
-                // Aumentar contraste e converter para escala de cinza para melhorar reconhecimento
+                // Pré-processamento: escala de cinza, aumento de contraste e binarização
                 image
                     .grayscale()
-                    .contrast(0.5)
-                    .normalize();
+                    .contrast(0.8)
+                    .normalize()
+                    .threshold({ max: 128 }); // Binarização para destacar texto
                 const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
                 return processedImage;
             } catch (error) {
@@ -159,10 +160,10 @@
 
             output.textContent = 'Processando...';
             try {
-                // Pré-processar a imagem para melhorar o reconhecimento
+                // Pré-processar a imagem
                 const processedImage = await preprocessImage(file);
 
-                // Configurações do Tesseract para texto manuscrito
+                // Configurações do Tesseract otimizadas para manuscrito
                 const { data: { text } } = await Tesseract.recognize(
                     processedImage,
                     'por+eng',
@@ -190,20 +191,24 @@
         }
 
         function processMathExpressions(text) {
-            // Regex para expressões matemáticas (números, operadores e funções)
-            const mathRegex = /[\d]+[\s]*[+\-*/][\s]*[\d]+[\s]*=?/g;
+            // Regex para detectar expressões matemáticas válidas
+            const mathRegex = /(\d+\s*[+\-*/]\s*\d+\s*=?)|(\d+\s*[+\-*/]\s*\d+\s*[+\-*/]\s*\d+\s*=?)/g;
             const lines = text.split('\n');
             let result = '';
 
             for (let line of lines) {
-                // Remover espaços extras e o "=" no final, se presente
-                const cleanedLine = line.trim().replace(/\s+/g, '').replace(/=$/, '');
+                // Limpar espaços extras e o "=" no final
+                const cleanedLine = line.trim().replace(/\s+/g, ' ').replace(/=$/, '');
                 const matches = cleanedLine.match(mathRegex);
 
                 if (matches) {
                     for (let expr of matches) {
                         // Limpar a expressão para avaliação
                         const cleanExpr = expr.replace(/\s+/g, '').replace(/=$/, '');
+                        // Validar se a expressão é realmente matemática
+                        if (!/^\d+[+\-*/]\d+([+\-*/]\d+)?$/.test(cleanExpr)) {
+                            continue; // Pular se não for uma expressão válida
+                        }
                         try {
                             // Avaliar a expressão com math.js
                             const evalResult = math.evaluate(cleanExpr);
@@ -215,7 +220,7 @@
                         }
                     }
                 }
-                result += line + '\n';
+                result += (line + '\n');
             }
 
             return result || text;
