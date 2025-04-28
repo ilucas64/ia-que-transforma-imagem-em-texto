@@ -139,12 +139,12 @@
                 const image = await Jimp.read(URL.createObjectURL(file));
                 // Pré-processamento otimizado para manuscrito
                 image
-                    .resize(800, Jimp.AUTO) // Aumentar resolução
+                    .resize(1200, Jimp.AUTO) // Aumentar resolução para melhor reconhecimento
                     .grayscale()
                     .contrast(1) // Máximo contraste
                     .normalize()
-                    .blur(0.5) // Reduzir ruído leve
-                    .threshold({ max: 80 }); // Binarização agressiva
+                    .blur(0.3) // Reduzir ruído leve
+                    .threshold({ max: 70 }); // Binarização agressiva para destacar texto
                 const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
                 return processedImage;
             } catch (error) {
@@ -168,7 +168,7 @@
                 // Configurações do Tesseract otimizadas para manuscrito matemático
                 const { data: { text } } = await Tesseract.recognize(
                     processedImage,
-                    'eng', // Foco em inglês para melhor reconhecimento de números e operadores
+                    'eng+chi_sim', // Suporte para inglês e chinês simplificado
                     {
                         logger: (m) => console.log(m),
                         tessedit_char_whitelist: '0123456789+-*/= ',
@@ -208,7 +208,9 @@
                     .replace(/o/g, '0') // "0" confundido com "o"
                     .replace(/z/g, '2') // "2" confundido com "z"
                     .replace(/s/g, '5') // "5" confundido com "s"
-                    .replace(/g/g, '9'); // "9" confundido com "g"
+                    .replace(/g/g, '9') // "9" confundido com "g"
+                    .replace(/T/g, '+') // "+" confundido com "T"
+                    .replace(/I/g, '1'); // "1" confundido com "I"
 
                 const matches = cleanedLine.match(mathRegex);
                 if (matches) {
