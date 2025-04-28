@@ -42,9 +42,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Imagem para Texto e Descrição</title>
+    <title>Imagem para Texto</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/color-thief@2.3.2/dist/color-thief.umd.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,7 +51,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            height: 100vh;
             margin: 0;
             background-color: #f0f0f0;
         }
@@ -65,16 +64,12 @@
         #preview {
             max-width: 300px;
             margin-bottom: 20px;
-            border: 2px solid #ccc;
-            border-radius: 5px;
-            display: none;
         }
-        #output, #description {
+        #output {
             width: 80%;
             max-width: 600px;
             min-height: 100px;
-            padding: 15px;
-            margin: 10px 0;
+            padding: 10px;
             background-color: white;
             border: 1px solid #ccc;
             border-radius: 5px;
@@ -91,297 +86,45 @@
         button:hover {
             background-color: #0056b3;
         }
-        .section-title {
-            font-size: 1.2em;
-            font-weight: bold;
-            margin-top: 20px;
-        }
-        #progress {
-            width: 80%;
-            max-width: 600px;
-            height: 20px;
-            margin: 10px 0;
-            display: none;
-        }
-        .error {
-            color: red;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
-    <h1>Transformar Imagem em Texto e Descrição</h1>
+    <h1>Transformar Imagem em Texto</h1>
     <input type="file" id="imageInput" accept="image/*">
-    <img id="preview" src="" alt="Prévia da imagem">
+    <img id="preview" src="" alt="Prévia da imagem" style="display: none;">
     <button onclick="processImage()">Processar Imagem</button>
-    <progress id="progress" value="0" max="100"></progress>
-    <div class="section-title">Texto Extraído:</div>
-    <div id="output">Aguardando imagem para extrair texto...</div>
-    <div class="section-title">Descrição da Imagem:</div>
-    <div id="description">Aguardando imagem para descrição...</div>
+    <div id="output">O texto extraído aparecerá aqui...</div>
 
     <script>
         const imageInput = document.getElementById('imageInput');
         const preview = document.getElementById('preview');
         const output = document.getElementById('output');
-        const description = document.getElementById('description');
-        const progress = document.getElementById('progress');
-        const colorThief = new ColorThief();
 
         imageInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            output.textContent = 'Aguardando imagem para extrair texto...';
-            preview.style.display = 'none';
-            preview.src = '';
-            if (!file) return;
-
-            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            if (!validTypes.includes(file.type)) {
-                output.textContent = 'Erro: Use JPG, PNG ou WEBP.';
-                return;
-            }
-
-            try {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        preview.src = img.src;
-                        preview.style.display = 'block';
-                        output.textContent = 'Imagem carregada! Clique em "Processar Imagem" para analisar.';
-                    };
-                    img.onerror = () => {
-                        output.textContent = 'Erro: Imagem inválida ou corrompida. Tente outro JPG, PNG ou WEBP.';
-                    };
-                };
-                reader.onerror = () => {
-                    output.textContent = 'Erro ao ler o arquivo. Tente outro JPG, PNG ou WEBP.';
-                };
-                reader.readAsDataURL(file);
-            } catch (e) {
-                output.textContent = 'Erro ao carregar: ' + e.message + '. Tente outro arquivo.';
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
             }
         });
 
         async function processImage() {
             const file = imageInput.files[0];
             if (!file) {
-                alert('Selecione uma imagem primeiro!');
+                alert('Por favor, selecione uma imagem primeiro!');
                 return;
             }
 
-            output.textContent = 'Processando texto...';
-            description.textContent = 'Analisando imagem...';
-            progress.style.display = 'block';
-            progress.value = 0;
-
-            let extractedText = '';
+            output.textContent = 'Processando...';
             try {
-                const worker = await Tesseract.createWorker('por', 1, {
-                    logger: (m) => {
-                        if (m.status === 'recognizing text') {
-                            progress.value = m.progress * 100;
-                        }
-                    },
-                    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-                    workerBlobURL: true
-                });
-
-                try {
-                    const { data: { text } } = await worker.recognize(file);
-                    extractedText = text.trim() || 'Nenhum texto reconhecido.';
-                    output.textContent = extractedText;
-                    await worker.terminate();
-                } catch (e) {
-                    throw new Error('Erro no reconhecimento de texto: ' + e.message);
-                }
-
-                progress.style.display = 'none';
-
-                try {
-                    const img = new Image();
-                    img.src = preview.src;
-                    img.crossOrigin = 'Anonymous';
-                    img.onload = () => {
-                        try {
-                            const fileSize = (file.size / 1024).toFixed(2) + ' KB';
-                            const dimensions = `${img.width} x ${img.height} pixels`;
-                            const fileType = file.type.split('/')[1].toUpperCase();
-                            let desc = `Você enviou uma imagem ${fileType} de ${fileSize}, com ${dimensions}.\n`;
-
-                            // Análise de texto
-                            let objectType = 'desconhecido';
-                            let objectDetails = '';
-                            if (extractedText !== 'Nenhum texto reconhecido.') {
-                                const coinMatch = extractedText.match(/(\d+\s*(real|reais|centavo|centavos))/i);
-                                if (coinMatch) {
-                                    objectType = 'moeda';
-                                    objectDetails = `O texto indica uma moeda brasileira, com valor "${coinMatch[0]}".\n`;
-                                } else if (extractedText.match(/brasil|república|moeda/i)) {
-                                    objectType = 'moeda';
-                                    objectDetails = 'O texto menciona "Brasil" ou termos relacionados, sugerindo uma moeda brasileira.\n';
-                                } else if (extractedText.match(/rua|avenida|placa|número|cidade/i)) {
-                                    objectType = 'placa';
-                                    objectDetails = `O texto contém "${extractedText.match(/rua|avenida|placa|número|cidade/i)[0]}", indicando uma placa ou sinalização.\n`;
-                                } else if (extractedText.match(/contrato|data|artigo|documento|nome|cpf|cnpj/i)) {
-                                    objectType = 'documento';
-                                    objectDetails = `O texto sugere um documento, com termos como "${extractedText.match(/contrato|data|artigo|documento|nome|cpf|cnpj/i)[0]}".\n`;
-                                } else if (extractedText.match(/\d{1,3}(,\d{1,2})?\s*(real|reais)/i)) {
-                                    objectType = 'moeda';
-                                    objectDetails = `O texto contém um valor monetário "${extractedText.match(/\d{1,3}(,\d{1,2})?\s*(real|reais)/i)[0]}", sugerindo uma moeda.\n`;
-                                } else if (extractedText.match(/\d+/)) {
-                                    objectDetails = 'O texto contém números, possivelmente um valor, código ou identificação.\n';
-                                } else {
-                                    objectDetails = 'O texto não contém pistas claras sobre o objeto.\n';
-                                }
-                            }
-
-                            // Análise de cores
-                            let isMetallic = false;
-                            try {
-                                const colors = colorThief.getColor(img);
-                                const palette = colorThief.getPalette(img, 4);
-                                const rgbToHex = (rgb) => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
-                                const colorNames = {
-                                    '#C0C0C0': 'prateado brilhante',
-                                    '#B0B0B0': 'prateado opaco',
-                                    '#FFD700': 'dourado',
-                                    '#D4A017': 'bronze',
-                                    '#FFFFFF': 'branco',
-                                    '#000000': 'preto',
-                                    '#333333': 'cinza escuro',
-                                    '#0000FF': 'azul',
-                                    '#008000': 'verde',
-                                    '#FF0000': 'vermelho'
-                                };
-                                const mainColorHex = rgbToHex(colors);
-                                const mainColorName = colorNames[mainColorHex] || mainColorHex;
-                                desc += `O objeto principal é ${mainColorName}.\n` +
-                                        `Outras cores: ${palette.map(rgb => colorNames[rgbToHex(rgb)] || rgbToHex(rgb)).join(', ')}.\n`;
-
-                                const r = colors[0], g = colors[1], b = colors[2];
-                                if (r > 160 && g > 160 && b > 160) {
-                                    desc += 'Parece metálico, provavelmente uma moeda prateada.\n';
-                                    isMetallic = true;
-                                } else if (r > 150 && g > 100 && b < 100) {
-                                    desc += 'Parece metálico, possivelmente uma moeda dourada ou bronzeada.\n';
-                                    isMetallic = true;
-                                } else if (b > 150 && r < 100 && g < 100) {
-                                    desc += 'A cor azul sugere uma placa ou objeto decorativo.\n';
-                                } else if (r > 150 && g < 100 && b < 100) {
-                                    desc += 'A cor vermelha sugere um objeto destacado, possivelmente uma placa ou item decorativo.\n';
-                                } else {
-                                    desc += 'A cor não é metálica, podendo ser um documento, placa ou outro item.\n';
-                                }
-                            } catch (e) {
-                                desc += 'Não foi possível analisar as cores.\n';
-                            }
-
-                            // Detecção de forma
-                            let isCircular = false;
-                            let isRectangular = false;
-                            try {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0);
-                                const imageData = ctx.getImageData(0, 0, img.width, img.height).data;
-                                let edgeCount = 0;
-                                let horizontalEdges = 0;
-                                let verticalEdges = 0;
-                                for (let x = 1; x < img.width - 1; x++) {
-                                    for (let y = 1; y < img.height - 1; y++) {
-                                        const i = (y * img.width + x) * 4;
-                                        const intensity = (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
-                                        const iNextY = ((y+1) * img.width + x) * 4;
-                                        const iNextX = (y * img.width + (x+1)) * 4;
-                                        const intensityNextY = (imageData[iNextY] + imageData[iNextY+1] + imageData[iNextY+2]) / 3;
-                                        const intensityNextX = (imageData[iNextX] + imageData[iNextX+1] + imageData[iNextX+2]) / 3;
-                                        if (Math.abs(intensity - intensityNextY) > 50) {
-                                            edgeCount++;
-                                            verticalEdges++;
-                                        }
-                                        if (Math.abs(intensity - intensityNextX) > 50) {
-                                            edgeCount++;
-                                            horizontalEdges++;
-                                        }
-                                    }
-                                }
-                                if (img.width === img.height && edgeCount > 1000 && edgeCount < 6000 && Math.abs(horizontalEdges - verticalEdges) < 1000) {
-                                    isCircular = true;
-                                    desc += 'O objeto é circular, muito provavelmente uma moeda.\n';
-                                } else if (img.width > img.height * 1.5 || img.height > img.width * 1.5) {
-                                    isRectangular = true;
-                                    desc += 'O objeto é retangular, possivelmente um documento ou placa.\n';
-                                } else {
-                                    desc += 'A forma do objeto é indefinida, mas pode ser detalhada.\n';
-                                }
-                            } catch (e) {
-                                desc += 'Não foi possível analisar a forma.\n';
-                            }
-
-                            // Análise de brilho e contraste
-                            let background = '';
-                            try {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0);
-                                const imageData = ctx.getImageData(0, 0, img.width, img.height).data;
-                                let brightness = 0;
-                                let contrast = 0;
-                                let minIntensity = 255;
-                                let maxIntensity = 0;
-                                for (let i = 0; i < imageData.length; i += 4) {
-                                    const intensity = (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
-                                    brightness += intensity;
-                                    minIntensity = Math.min(minIntensity, intensity);
-                                    maxIntensity = Math.max(maxIntensity, intensity);
-                                }
-                                brightness /= (imageData.length / 4);
-                                contrast = maxIntensity - minIntensity;
-                                background = brightness > 128 ? 
-                                             'claro, destacando o objeto central, possivelmente sobre uma superfície lisa ou uniforme.' : 
-                                             'escuro, criando forte contraste com o objeto, que pode estar sobre uma superfície texturizada.';
-                                desc += `O fundo é ${background}\n`;
-                                desc += contrast > 100 ? 
-                                        'A imagem tem alto contraste, destacando claramente o objeto do fundo.\n' : 
-                                        'A imagem tem baixo contraste, com o objeto mesclando-se ao fundo.\n';
-                            } catch (e) {
-                                desc += 'Não foi possível analisar o fundo ou contraste.\n';
-                            }
-
-                            // Síntese
-                            if (objectType === 'moeda' || isCircular || (isMetallic && img.width === img.height && img.width <= 1500)) {
-                                desc += `Resumindo, esta é muito provavelmente uma moeda${isMetallic ? ' metálica' : ''}, com detalhes nítidos. ${objectDetails}`;
-                            } else if (objectType === 'placa' || (isRectangular && extractedText.match(/rua|avenida|placa|número|cidade/i))) {
-                                desc += `Resumindo, esta é provavelmente uma placa ou sinalização. ${objectDetails}`;
-                            } else if (objectType === 'documento' || (isRectangular && extractedText.match(/contrato|data|artigo|documento|nome|cpf|cnpj/i))) {
-                                desc += `Resumindo, esta é provavelmente um documento ou texto formal. ${objectDetails}`;
-                            } else {
-                                desc += `Resumindo, a imagem mostra um objeto ${isMetallic ? 'metálico' : 'indefinido'}, possivelmente com texto ou números. ${objectDetails}`;
-                            }
-
-                            description.textContent = desc;
-                        } catch (e) {
-                            description.textContent = 'Erro ao descrever: ' + e.message;
-                        }
-                    };
-                    img.onerror = () => {
-                        const fileSize = (file.size / 1024).toFixed(2) + ' KB';
-                        const fileType = file.type.split('/')[1].toUpperCase();
-                        description.textContent = `Você enviou uma imagem ${fileType} de ${fileSize}.\nNão foi possível analisar a imagem.`;
-                    };
-                } catch (e) {
-                    description.textContent = 'Erro ao descrever: ' + e.message;
-                }
+                const { data: { text } } = await Tesseract.recognize(
+                    file,
+                    'por+eng',
+                    { logger: (m) => console.log(m) }
+                );
+                output.textContent = text || 'Nenhum texto reconhecido.';
             } catch (error) {
-                output.textContent = 'Erro ao processar: ' + error.message + '. Tente uma imagem JPG, PNG ou WEBP menor.';
-                description.textContent = 'Erro ao analisar: ' + error.message + '. Tente outra imagem.';
-                progress.style.display = 'none';
+                output.textContent = 'Erro ao processar a imagem: ' + error.message;
             }
         }
     </script>
