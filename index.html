@@ -45,6 +45,7 @@
     <title>Imagem para Texto</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.2/lib/browser/math.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jimp@0.22.12/dist/jimp.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -133,6 +134,22 @@
             output.textContent = 'O texto extraído aparecerá aqui...';
         }
 
+        async function preprocessImage(file) {
+            try {
+                const image = await Jimp.read(URL.createObjectURL(file));
+                // Aumentar contraste e converter para escala de cinza para melhorar reconhecimento
+                image
+                    .grayscale()
+                    .contrast(0.5)
+                    .normalize();
+                const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
+                return processedImage;
+            } catch (error) {
+                console.error('Erro ao pré-processar a imagem:', error);
+                return URL.createObjectURL(file); // Fallback para a imagem original
+            }
+        }
+
         async function processImage() {
             const file = imageInput.files[0];
             if (!file) {
@@ -142,15 +159,20 @@
 
             output.textContent = 'Processando...';
             try {
-                // Configurações do Tesseract para letras bastão e cursivas
+                // Pré-processar a imagem para melhorar o reconhecimento
+                const processedImage = await preprocessImage(file);
+
+                // Configurações do Tesseract para texto manuscrito
                 const { data: { text } } = await Tesseract.recognize(
-                    file,
+                    processedImage,
                     'por+eng',
                     {
                         logger: (m) => console.log(m),
-                        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/=()[]{}.,;:!? ',
+                        tessedit_char_whitelist: '0123456789+-*/=()[]{}.,; ',
                         tessedit_pageseg_mode: 6,
-                        oem: 1
+                        oem: 1,
+                        tessedit_ocr_engine_mode: 1,
+                        tessedit_char_blacklist: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
                     }
                 );
 
@@ -168,30 +190,28 @@
         }
 
         function processMathExpressions(text) {
-            // Regex para identificar expressões matemáticas complexas
-            const mathRegex = /[\d\s+\-*/()=^]+|sin|cos|tan|sqrt|log|ln|[a-zA-Z]\w*\s*=\s*[\d\s+\-*/()]+/g;
+            // Regex para expressões matemáticas (números, operadores e funções)
+            const mathRegex = /[\d]+[\s]*[+\-*/][\s]*[\d]+[\s]*=?/g;
             const lines = text.split('\n');
             let result = '';
 
             for (let line of lines) {
-                const matches = line.match(mathRegex);
+                // Remover espaços extras e o "=" no final, se presente
+                const cleanedLine = line.trim().replace(/\s+/g, '').replace(/=$/, '');
+                const matches = cleanedLine.match(mathRegex);
+
                 if (matches) {
                     for (let expr of matches) {
+                        // Limpar a expressão para avaliação
+                        const cleanExpr = expr.replace(/\s+/g, '').replace(/=$/, '');
                         try {
-                            // Limpar e avaliar expressão com math.js
-                            const cleanExpr = expr.trim();
-                            // Suporte para funções matemáticas e variáveis
-                            const evalResult = math.evaluate(cleanExpr, {
-                                sin: math.sin,
-                                cos: math.cos,
-                                tan: math.tan,
-                                sqrt: math.sqrt,
-                                log: math.log,
-                                ln: math.log
-                            });
-                            line += `\nResultado: ${cleanExpr} = ${evalResult}`;
+                            // Avaliar a expressão com math.js
+                            const evalResult = math.evaluate(cleanExpr);
+                            if (typeof evalResult !== 'undefined' && !isNaN(evalResult)) {
+                                line += `\nResultado: ${cleanExpr} = ${evalResult}`;
+                            }
                         } catch (e) {
-                            console.warn(`Não foi possível avaliar: ${expr}`, e);
+                            console.warn(`Não foi possível avaliar: ${cleanExpr}`, e);
                         }
                     }
                 }
