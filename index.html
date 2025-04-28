@@ -137,12 +137,14 @@
         async function preprocessImage(file) {
             try {
                 const image = await Jimp.read(URL.createObjectURL(file));
-                // Pré-processamento: escala de cinza, aumento de contraste e binarização
+                // Pré-processamento avançado para manuscrito
                 image
+                    .resize(600, Jimp.AUTO) // Aumentar resolução para melhor reconhecimento
                     .grayscale()
-                    .contrast(0.8)
+                    .contrast(1) // Máximo contraste
                     .normalize()
-                    .threshold({ max: 128 }); // Binarização para destacar texto
+                    .blur(1) // Reduzir ruído
+                    .threshold({ max: 100 }); // Binarização mais agressiva
                 const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
                 return processedImage;
             } catch (error) {
@@ -163,13 +165,13 @@
                 // Pré-processar a imagem
                 const processedImage = await preprocessImage(file);
 
-                // Configurações do Tesseract otimizadas para manuscrito
+                // Configurações do Tesseract otimizadas para manuscrito matemático
                 const { data: { text } } = await Tesseract.recognize(
                     processedImage,
                     'por+eng',
                     {
                         logger: (m) => console.log(m),
-                        tessedit_char_whitelist: '0123456789+-*/=()[]{}.,; ',
+                        tessedit_char_whitelist: '0123456789+-*/= ',
                         tessedit_pageseg_mode: 6,
                         oem: 1,
                         tessedit_ocr_engine_mode: 1,
@@ -191,22 +193,24 @@
         }
 
         function processMathExpressions(text) {
-            // Regex para detectar expressões matemáticas válidas
-            const mathRegex = /(\d+\s*[+\-*/]\s*\d+\s*=?)|(\d+\s*[+\-*/]\s*\d+\s*[+\-*/]\s*\d+\s*=?)/g;
+            // Regex para detectar expressões matemáticas simples
+            const mathRegex = /\d+\s*[+\-*/]\s*\d+\s*=?\s*/g;
             const lines = text.split('\n');
             let result = '';
 
             for (let line of lines) {
-                // Limpar espaços extras e o "=" no final
-                const cleanedLine = line.trim().replace(/\s+/g, ' ').replace(/=$/, '');
-                const matches = cleanedLine.match(mathRegex);
+                // Limpar a linha e corrigir erros comuns do OCR
+                let cleanedLine = line.trim().replace(/\s+/g, ' ').replace(/=$/, '');
+                // Corrigir erros comuns do OCR (ex.: "+" confundido com "t" ou "l")
+                cleanedLine = cleanedLine.replace(/t/g, '+').replace(/l/g, '1').replace(/o/g, '0');
 
+                const matches = cleanedLine.match(mathRegex);
                 if (matches) {
                     for (let expr of matches) {
                         // Limpar a expressão para avaliação
                         const cleanExpr = expr.replace(/\s+/g, '').replace(/=$/, '');
-                        // Validar se a expressão é realmente matemática
-                        if (!/^\d+[+\-*/]\d+([+\-*/]\d+)?$/.test(cleanExpr)) {
+                        // Validar a expressão antes de avaliar
+                        if (!/^\d+[+\-*/]\d+$/.test(cleanExpr)) {
                             continue; // Pular se não for uma expressão válida
                         }
                         try {
