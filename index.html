@@ -137,14 +137,14 @@
         async function preprocessImage(file) {
             try {
                 const image = await Jimp.read(URL.createObjectURL(file));
-                // Pré-processamento avançado para manuscrito
+                // Pré-processamento otimizado para manuscrito
                 image
-                    .resize(600, Jimp.AUTO) // Aumentar resolução para melhor reconhecimento
+                    .resize(800, Jimp.AUTO) // Aumentar resolução
                     .grayscale()
                     .contrast(1) // Máximo contraste
                     .normalize()
-                    .blur(1) // Reduzir ruído
-                    .threshold({ max: 100 }); // Binarização mais agressiva
+                    .blur(0.5) // Reduzir ruído leve
+                    .threshold({ max: 80 }); // Binarização agressiva
                 const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
                 return processedImage;
             } catch (error) {
@@ -168,7 +168,7 @@
                 // Configurações do Tesseract otimizadas para manuscrito matemático
                 const { data: { text } } = await Tesseract.recognize(
                     processedImage,
-                    'por+eng',
+                    'eng', // Foco em inglês para melhor reconhecimento de números e operadores
                     {
                         logger: (m) => console.log(m),
                         tessedit_char_whitelist: '0123456789+-*/= ',
@@ -201,17 +201,23 @@
             for (let line of lines) {
                 // Limpar a linha e corrigir erros comuns do OCR
                 let cleanedLine = line.trim().replace(/\s+/g, ' ').replace(/=$/, '');
-                // Corrigir erros comuns do OCR (ex.: "+" confundido com "t" ou "l")
-                cleanedLine = cleanedLine.replace(/t/g, '+').replace(/l/g, '1').replace(/o/g, '0');
+                // Correções específicas para erros do OCR
+                cleanedLine = cleanedLine
+                    .replace(/t/g, '+') // "+" confundido com "t"
+                    .replace(/l/g, '1') // "1" confundido com "l"
+                    .replace(/o/g, '0') // "0" confundido com "o"
+                    .replace(/z/g, '2') // "2" confundido com "z"
+                    .replace(/s/g, '5') // "5" confundido com "s"
+                    .replace(/g/g, '9'); // "9" confundido com "g"
 
                 const matches = cleanedLine.match(mathRegex);
                 if (matches) {
                     for (let expr of matches) {
                         // Limpar a expressão para avaliação
                         const cleanExpr = expr.replace(/\s+/g, '').replace(/=$/, '');
-                        // Validar a expressão antes de avaliar
+                        // Validar a expressão
                         if (!/^\d+[+\-*/]\d+$/.test(cleanExpr)) {
-                            continue; // Pular se não for uma expressão válida
+                            continue; // Pular se não for válida
                         }
                         try {
                             // Avaliar a expressão com math.js
