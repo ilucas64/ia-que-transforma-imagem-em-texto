@@ -14,7 +14,7 @@ imageInput.addEventListener('change', (event) => {
     if (file) {
         preview.src = URL.createObjectURL(file);
         preview.style.display = 'block';
-        loadedImage = file; // Armazenar o arquivo para uso posterior
+        loadedImage = file;
     }
 });
 
@@ -41,7 +41,7 @@ function resetFile() {
     extractedText = '';
     loadedImage = null;
     output.textContent = 'O texto extraído aparecerá aqui...';
-    output.classList.remove('error');
+    output.classList.remove('error', 'loading');
     mathAnswer.textContent = 'A resposta aparecerá aqui...';
 }
 
@@ -72,6 +72,7 @@ async function processImage() {
     }
 
     output.textContent = 'Processando...';
+    output.classList.add('loading');
     output.classList.remove('error');
     try {
         const { processedImage } = await preprocessImage(loadedImage);
@@ -96,10 +97,12 @@ async function processImage() {
 
         if (!mathMode) {
             output.textContent = extractedText;
+            output.classList.remove('loading');
         }
     } catch (error) {
         output.textContent = 'Erro ao processar a imagem: ' + error.message;
         output.classList.add('error');
+        output.classList.remove('loading');
     }
 }
 
@@ -110,16 +113,22 @@ async function detectColor() {
         return;
     }
 
-    output.textContent = 'Detectando cor predominante...';
+    output.textContent = 'Carregando imagem para detecção de cor...';
+    output.classList.add('loading');
     output.classList.remove('error');
-    try {
-        // Carregar a imagem original para detecção de cores
-        const image = await Jimp.read(URL.createObjectURL(loadedImage));
-        if (!image) throw new Error('Não foi possível carregar a imagem.');
 
-        // Amostragem de pixels para melhorar eficiência
+    try {
+        // Tentar ler a imagem diretamente do arquivo carregado
+        console.log('Iniciando leitura da imagem com Jimp...');
+        const image = await Jimp.read(URL.createObjectURL(loadedImage));
+        console.log('Imagem carregada com sucesso:', image.bitmap.width, 'x', image.bitmap.height);
+
+        output.textContent = 'Analisando cores...';
+        // Amostragem de pixels com passo ajustado
         const colorCounts = {};
-        const step = 10; // Amostrar 1 em cada 10 pixels
+        const step = Math.max(1, Math.floor(Math.min(image.bitmap.width, image.bitmap.height) / 100)); // Ajustar passo dinamicamente
+        console.log('Amostrando pixels com passo:', step);
+
         for (let x = 0; x < image.bitmap.width; x += step) {
             for (let y = 0; y < image.bitmap.height; y += step) {
                 const idx = image.getPixelIndex(x, y);
@@ -131,15 +140,19 @@ async function detectColor() {
             }
         }
 
+        console.log('Contagem de cores concluída:', colorCounts);
         const predominantColor = Object.keys(colorCounts).reduce((a, b) => colorCounts[a] > colorCounts[b] ? a : b);
         const r = parseInt(predominantColor.substr(0, 2), 16);
         const g = parseInt(predominantColor.substr(2, 2), 16);
         const b = parseInt(predominantColor.substr(4, 2), 16);
 
         output.textContent = `Cor predominante:\nHex: #${predominantColor}\nRGB: (${r}, ${g}, ${b})`;
+        output.classList.remove('loading');
     } catch (error) {
+        console.error('Erro ao detectar a cor predominante:', error);
         output.textContent = 'Erro ao detectar a cor predominante: ' + error.message;
         output.classList.add('error');
+        output.classList.remove('loading');
     }
 }
 
