@@ -1,59 +1,92 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Imagem para Texto e Cores</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Imagem para Texto</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.2/lib/browser/math.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jimp@0.22.12/dist/jimp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        #imageInput {
+            margin: 20px 0;
+        }
+        #preview {
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+        #output {
+            width: 80%;
+            max-width: 600px;
+            min-height: 100px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        #mathInteraction {
+            display: none;
+            width: 80%;
+            max-width: 600px;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #mathQuestion {
+            width: 100%;
+            min-height: 50px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            resize: vertical;
+        }
+        #mathAnswer {
+            width: 100%;
+            min-height: 50px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #toggleMathMode.active {
+            background-color: #28a745;
+        }
+        #toggleMathMode.active:hover {
+            background-color: #218838;
+        }
+    </style>
 </head>
 <body>
-    <h1>Transformar Imagem em Texto e Cores</h1>
+    <h1>Transformar Imagem em Texto</h1>
     <input type="file" id="imageInput" accept="image/*">
     <img id="preview" src="" alt="Prévia da imagem" style="display: none;">
     <button onclick="processImage()">Processar Imagem</button>
-    <button onclick="detectColor()">Detectar Cor Predominante</button>
     <button onclick="resetFile()">Escolher Outro Arquivo</button>
     <button id="toggleMathMode" onclick="toggleMathMode()">Ativar Modo Matemático</button>
     <div id="output">O texto extraído aparecerá aqui...</div>
@@ -62,6 +95,151 @@
         <button onclick="answerMathQuestion()">Enviar Pergunta</button>
         <div id="mathAnswer">A resposta aparecerá aqui...</div>
     </div>
-    <script src="script.js"></script>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const output = document.getElementById('output');
+        const mathInteraction = document.getElementById('mathInteraction');
+        const mathQuestion = document.getElementById('mathQuestion');
+        const mathAnswer = document.getElementById('mathAnswer');
+        const toggleMathModeButton = document.getElementById('toggleMathMode');
+        let mathMode = false;
+        let extractedText = '';
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+            }
+        });
+
+        function toggleMathMode() {
+            mathMode = !mathMode;
+            toggleMathModeButton.textContent = mathMode ? 'Desativar Modo Matemático' : 'Ativar Modo Matemático';
+            toggleMathModeButton.classList.toggle('active', mathMode);
+
+            if (mathMode) {
+                output.style.display = 'none';
+                mathInteraction.style.display = 'flex';
+                mathAnswer.textContent = 'A resposta aparecerá aqui...';
+            } else {
+                output.style.display = 'block';
+                mathInteraction.style.display = 'none';
+                output.textContent = extractedText || 'O texto extraído aparecerá aqui...';
+            }
+        }
+
+        function resetFile() {
+            imageInput.value = '';
+            preview.src = '';
+            preview.style.display = 'none';
+            extractedText = '';
+            output.textContent = 'O texto extraído aparecerá aqui...';
+            mathAnswer.textContent = 'A resposta aparecerá aqui...';
+        }
+
+        async function preprocessImage(file) {
+            try {
+                const image = await Jimp.read(URL.createObjectURL(file));
+                image
+                    .resize(1200, Jimp.AUTO)
+                    .grayscale()
+                    .contrast(1)
+                    .normalize()
+                    .blur(0.3)
+                    .threshold({ max: 70 });
+                const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
+                return processedImage;
+            } catch (error) {
+                console.error('Erro ao pré-processar a imagem:', error);
+                return URL.createObjectURL(file);
+            }
+        }
+
+        async function processImage() {
+            const file = imageInput.files[0];
+            if (!file) {
+                alert('Por favor, selecione uma imagem primeiro!');
+                return;
+            }
+
+            output.textContent = 'Processando...';
+            try {
+                const processedImage = await preprocessImage(file);
+                const { data: { text } } = await Tesseract.recognize(
+                    processedImage,
+                    'eng+chi_sim',
+                    {
+                        logger: (m) => console.log(m),
+                        tessedit_char_whitelist: '0123456789+-*/= ',
+                        tessedit_pageseg_mode: 6,
+                        oem: 1,
+                        tessedit_ocr_engine_mode: 1,
+                        tessedit_char_blacklist: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                    }
+                );
+
+                if (!text) {
+                    extractedText = 'Nenhum texto reconhecido.';
+                } else {
+                    extractedText = text;
+                }
+
+                if (!mathMode) {
+                    output.textContent = extractedText;
+                }
+            } catch (error) {
+                output.textContent = 'Erro ao processar a imagem: ' + error.message;
+            }
+        }
+
+        function answerMathQuestion() {
+            const question = mathQuestion.value.trim();
+            if (!question) {
+                mathAnswer.textContent = 'Por favor, digite uma pergunta matemática.';
+                return;
+            }
+
+            try {
+                // Tentar avaliar a expressão diretamente
+                const cleanExpr = question.replace(/\s+/g, '');
+                if (/^\d+[+\-*/]\d+$/.test(cleanExpr)) {
+                    const evalResult = math.evaluate(cleanExpr);
+                    if (typeof evalResult !== 'undefined' && !isNaN(evalResult)) {
+                        mathAnswer.textContent = `Resultado: ${cleanExpr} = ${evalResult}`;
+                        return;
+                    }
+                }
+
+                // Se não for uma expressão simples, tentar interpretar como pergunta
+                if (question.toLowerCase().includes('quanto é') || question.toLowerCase().includes('qual é')) {
+                    const match = question.match(/\d+\s*[+\-*/]\s*\d+/);
+                    if (match) {
+                        const expr = match[0].replace(/\s+/g, '');
+                        const evalResult = math.evaluate(expr);
+                        mathAnswer.textContent = `Resultado: ${expr} = ${evalResult}`;
+                        return;
+                    }
+                }
+
+                // Verificar se a pergunta referencia o texto extraído
+                if (question.toLowerCase().includes('texto') || question.toLowerCase().includes('imagem')) {
+                    const match = extractedText.match(/\d+\s*[+\-*/]\s*\d+\s*=?\s*/);
+                    if (match) {
+                        const expr = match[0].replace(/\s+/g, '').replace(/=$/, '');
+                        const evalResult = math.evaluate(expr);
+                        mathAnswer.textContent = `No texto extraído: ${expr} = ${evalResult}`;
+                        return;
+                    }
+                }
+
+                mathAnswer.textContent = 'Desculpe, não consegui entender a pergunta. Tente algo como "Quanto é 2 + 2?" ou "Qual é o resultado do texto?"';
+            } catch (e) {
+                mathAnswer.textContent = 'Erro ao calcular: ' + e.message;
+            }
+        }
+    </script>
 </body>
 </html>
