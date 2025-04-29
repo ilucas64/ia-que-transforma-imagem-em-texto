@@ -1,0 +1,84 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+}
+h1 {
+    color: #333;
+}
+#imageInput {
+    margin: 20px 0;
+}
+#preview {
+    max-width: 300px;
+    margin-bottom: 20px;
+}
+#output {
+    width: 80%;
+    max-width: 600px;
+    min-height: 100px;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
+#output.error {
+    border-color: #ff0000;
+    color: #ff0000;
+}
+#output.loading {
+    color: #666;
+    font-style: italic;
+}
+#mathInteraction {
+    display: none;
+    width: 80%;
+    max-width: 600px;
+    flex-direction: column;
+    gap: 10px;
+}
+#mathQuestion {
+    width: 100%;
+    min-height: 50px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: vertical;
+}
+#mathAnswer {
+    width: 100%;
+    min-height: 50px;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
+button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 5px;
+}
+button:hover {
+    background-color: #0056b3;
+}
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+#toggleMathMode.active {
+    background-color: #28a745;
+}
+#toggleMathMode.active:hover {
+    background-color: #218838;
+}
