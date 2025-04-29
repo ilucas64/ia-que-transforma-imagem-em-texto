@@ -7,12 +7,14 @@ const mathAnswer = document.getElementById('mathAnswer');
 const toggleMathModeButton = document.getElementById('toggleMathMode');
 let mathMode = false;
 let extractedText = '';
+let loadedImage = null;
 
 imageInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (file) {
         preview.src = URL.createObjectURL(file);
         preview.style.display = 'block';
+        loadedImage = file; // Armazenar o arquivo para uso posterior
     }
 });
 
@@ -37,21 +39,24 @@ function resetFile() {
     preview.src = '';
     preview.style.display = 'none';
     extractedText = '';
+    loadedImage = null;
     output.textContent = 'O texto extraído aparecerá aqui...';
+    output.classList.remove('error');
     mathAnswer.textContent = 'A resposta aparecerá aqui...';
 }
 
 async function preprocessImage(file) {
     try {
         const image = await Jimp.read(URL.createObjectURL(file));
-        image
+        const processedImageClone = image.clone();
+        processedImageClone
             .resize(1200, Jimp.AUTO)
             .grayscale()
             .contrast(1)
             .normalize()
             .blur(0.3)
             .threshold({ max: 70 });
-        const processedImage = await image.getBase64Async(Jimp.MIME_PNG);
+        const processedImage = await processedImageClone.getBase64Async(Jimp.MIME_PNG);
         return { processedImage, originalImage: image };
     } catch (error) {
         console.error('Erro ao pré-processar a imagem:', error);
@@ -60,15 +65,16 @@ async function preprocessImage(file) {
 }
 
 async function processImage() {
-    const file = imageInput.files[0];
-    if (!file) {
-        alert('Por favor, selecione uma imagem primeiro!');
+    if (!loadedImage) {
+        output.textContent = 'Por favor, selecione uma imagem primeiro!';
+        output.classList.add('error');
         return;
     }
 
     output.textContent = 'Processando...';
+    output.classList.remove('error');
     try {
-        const { processedImage } = await preprocessImage(file);
+        const { processedImage } = await preprocessImage(loadedImage);
         const { data: { text } } = await Tesseract.recognize(
             processedImage,
             'eng+chi_sim',
@@ -93,30 +99,37 @@ async function processImage() {
         }
     } catch (error) {
         output.textContent = 'Erro ao processar a imagem: ' + error.message;
+        output.classList.add('error');
     }
 }
 
 async function detectColor() {
-    const file = imageInput.files[0];
-    if (!file) {
-        alert('Por favor, selecione uma imagem primeiro!');
+    if (!loadedImage) {
+        output.textContent = 'Por favor, selecione uma imagem primeiro!';
+        output.classList.add('error');
         return;
     }
 
     output.textContent = 'Detectando cor predominante...';
+    output.classList.remove('error');
     try {
-        const { originalImage } = await preprocessImage(file);
-        if (!originalImage) throw new Error('Não foi possível carregar a imagem.');
+        // Carregar a imagem original para detecção de cores
+        const image = await Jimp.read(URL.createObjectURL(loadedImage));
+        if (!image) throw new Error('Não foi possível carregar a imagem.');
 
-        // Calcular a cor predominante
+        // Amostragem de pixels para melhorar eficiência
         const colorCounts = {};
-        originalImage.scan(0, 0, originalImage.bitmap.width, originalImage.bitmap.height, (x, y, idx) => {
-            const r = originalImage.bitmap.data[idx];
-            const g = originalImage.bitmap.data[idx + 1];
-            const b = originalImage.bitmap.data[idx + 2];
-            const hex = Jimp.rgbaToInt(r, g, b, 255).toString(16).padStart(6, '0');
-            colorCounts[hex] = (colorCounts[hex] || 0) + 1;
-        });
+        const step = 10; // Amostrar 1 em cada 10 pixels
+        for (let x = 0; x < image.bitmap.width; x += step) {
+            for (let y = 0; y < image.bitmap.height; y += step) {
+                const idx = image.getPixelIndex(x, y);
+                const r = image.bitmap.data[idx];
+                const g = image.bitmap.data[idx + 1];
+                const b = image.bitmap.data[idx + 2];
+                const hex = Jimp.rgbaToInt(r, g, b, 255).toString(16).padStart(6, '0');
+                colorCounts[hex] = (colorCounts[hex] || 0) + 1;
+            }
+        }
 
         const predominantColor = Object.keys(colorCounts).reduce((a, b) => colorCounts[a] > colorCounts[b] ? a : b);
         const r = parseInt(predominantColor.substr(0, 2), 16);
@@ -125,7 +138,8 @@ async function detectColor() {
 
         output.textContent = `Cor predominante:\nHex: #${predominantColor}\nRGB: (${r}, ${g}, ${b})`;
     } catch (error) {
-        output.textContent = 'Erro ao detectar a cor: ' + error.message;
+        output.textContent = 'Erro ao detectar a cor predominante: ' + error.message;
+        output.classList.add('error');
     }
 }
 

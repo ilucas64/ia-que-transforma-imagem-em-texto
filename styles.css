@@ -28,6 +28,10 @@ h1 {
     border-radius: 5px;
     white-space: pre-wrap;
 }
+#output.error {
+    border-color: #ff0000;
+    color: #ff0000;
+}
 #mathInteraction {
     display: none;
     width: 80%;
