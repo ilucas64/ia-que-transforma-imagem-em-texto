@@ -72,6 +72,10 @@ button {
 button:hover {
     background-color: #0056b3;
 }
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
 #toggleMathMode.active {
     background-color: #28a745;
 }

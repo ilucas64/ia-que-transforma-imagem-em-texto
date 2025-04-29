@@ -1,7 +1,30 @@
-// Aguardar o carregamento completo de todas as dependências
-window.onload = function() {
-    console.log('Todas as dependências foram carregadas. Jimp disponível:', typeof Jimp !== 'undefined');
+(async function initializeApp() {
+    // Aguardar o carregamento de Jimp
+    console.log('Aguardando o carregamento de Jimp...');
+    const checkJimpLoaded = () => new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+            if (typeof Jimp !== 'undefined') {
+                clearInterval(checkInterval);
+                console.log('Jimp carregado com sucesso.');
+                resolve(true);
+            }
+        }, 100);
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            console.error('Jimp não foi carregado dentro do tempo limite.');
+            resolve(false);
+        }, 10000); // Timeout de 10 segundos
+    });
 
+    const isJimpLoaded = await checkJimpLoaded();
+    if (!isJimpLoaded) {
+        const output = document.getElementById('output');
+        output.textContent = 'Erro: Não foi possível carregar a biblioteca Jimp. Tente recarregar a página.';
+        output.classList.add('error');
+        return;
+    }
+
+    // Inicializar elementos e eventos
     const imageInput = document.getElementById('imageInput');
     const preview = document.getElementById('preview');
     const output = document.getElementById('output');
@@ -9,9 +32,16 @@ window.onload = function() {
     const mathQuestion = document.getElementById('mathQuestion');
     const mathAnswer = document.getElementById('mathAnswer');
     const toggleMathModeButton = document.getElementById('toggleMathMode');
+    const processButton = document.querySelector('button[onclick="processImage()"]');
+    const detectColorButton = document.querySelector('button[onclick="detectColor()"]');
     let mathMode = false;
     let extractedText = '';
     let loadedImage = null;
+    let isProcessing = false;
+
+    // Desativar botões inicialmente até que uma imagem seja carregada
+    processButton.disabled = true;
+    detectColorButton.disabled = true;
 
     imageInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
@@ -19,6 +49,11 @@ window.onload = function() {
             preview.src = URL.createObjectURL(file);
             preview.style.display = 'block';
             loadedImage = file;
+            processButton.disabled = false;
+            detectColorButton.disabled = false;
+        } else {
+            processButton.disabled = true;
+            detectColorButton.disabled = true;
         }
     });
 
@@ -47,11 +82,12 @@ window.onload = function() {
         output.textContent = 'O texto extraído aparecerá aqui...';
         output.classList.remove('error', 'loading');
         mathAnswer.textContent = 'A resposta aparecerá aqui...';
+        processButton.disabled = true;
+        detectColorButton.disabled = true;
     };
 
     async function preprocessImage(file) {
         try {
-            if (typeof Jimp === 'undefined') throw new Error('Jimp não está definido.');
             const image = await Jimp.read(URL.createObjectURL(file));
             const processedImageClone = image.clone();
             processedImageClone
@@ -65,7 +101,7 @@ window.onload = function() {
             return { processedImage, originalImage: image };
         } catch (error) {
             console.error('Erro ao pré-processar a imagem:', error);
-            return { processedImage: URL.createObjectURL(file), originalImage: null };
+            throw new Error('Falha ao pré-processar a imagem: ' + error.message);
         }
     }
 
@@ -76,9 +112,20 @@ window.onload = function() {
             return;
         }
 
+        if (isProcessing) {
+            output.textContent = 'Processamento em andamento, por favor aguarde...';
+            output.classList.add('loading');
+            return;
+        }
+
+        isProcessing = true;
+        processButton.disabled = true;
+        detectColorButton.disabled = true;
+
         output.textContent = 'Processando...';
         output.classList.add('loading');
         output.classList.remove('error');
+
         try {
             const { processedImage } = await preprocessImage(loadedImage);
             const { data: { text } } = await Tesseract.recognize(
@@ -108,6 +155,10 @@ window.onload = function() {
             output.textContent = 'Erro ao processar a imagem: ' + error.message;
             output.classList.add('error');
             output.classList.remove('loading');
+        } finally {
+            isProcessing = false;
+            processButton.disabled = false;
+            detectColorButton.disabled = false;
         }
     };
 
@@ -118,12 +169,15 @@ window.onload = function() {
             return;
         }
 
-        if (typeof Jimp === 'undefined') {
-            output.textContent = 'Erro: A biblioteca Jimp não foi carregada corretamente. Tente recarregar a página.';
-            output.classList.add('error');
-            console.error('Jimp não está definido ao tentar detectar a cor.');
+        if (isProcessing) {
+            output.textContent = 'Processamento em andamento, por favor aguarde...';
+            output.classList.add('loading');
             return;
         }
+
+        isProcessing = true;
+        processButton.disabled = true;
+        detectColorButton.disabled = true;
 
         output.textContent = 'Carregando imagem para detecção de cor...';
         output.classList.add('loading');
@@ -132,11 +186,15 @@ window.onload = function() {
         try {
             console.log('Iniciando leitura da imagem com Jimp...');
             const image = await Jimp.read(URL.createObjectURL(loadedImage));
+            if (!image || !image.bitmap) {
+                throw new Error('Imagem inválida ou corrompida.');
+            }
             console.log('Imagem carregada com sucesso:', image.bitmap.width, 'x', image.bitmap.height);
 
             output.textContent = 'Analisando cores...';
             const colorCounts = {};
-            const step = Math.max(1, Math.floor(Math.min(image.bitmap.width, image.bitmap.height) / 100));
+            const maxPixels = 10000; // Limitar o número total de pixels analisados
+            const step = Math.max(1, Math.floor(Math.sqrt((image.bitmap.width * image.bitmap.height) / maxPixels)));
             console.log('Amostrando pixels com passo:', step);
 
             for (let x = 0; x < image.bitmap.width; x += step) {
@@ -148,6 +206,10 @@ window.onload = function() {
                     const hex = Jimp.rgbaToInt(r, g, b, 255).toString(16).padStart(6, '0');
                     colorCounts[hex] = (colorCounts[hex] || 0) + 1;
                 }
+            }
+
+            if (Object.keys(colorCounts).length === 0) {
+                throw new Error('Nenhuma cor detectada na imagem.');
             }
 
             console.log('Contagem de cores concluída:', colorCounts);
@@ -163,6 +225,10 @@ window.onload = function() {
             output.textContent = 'Erro ao detectar a cor predominante: ' + error.message;
             output.classList.add('error');
             output.classList.remove('loading');
+        } finally {
+            isProcessing = false;
+            processButton.disabled = false;
+            detectColorButton.disabled = false;
         }
     };
 
@@ -208,4 +274,4 @@ window.onload = function() {
             mathAnswer.textContent = 'Erro ao calcular: ' + e.message;
         }
     };
-};
+})();
