@@ -1,4 +1,4 @@
-window.onload = function() {
+window.onload = function () {
     const imageInput = document.getElementById('imageInput');
     const preview = document.getElementById('preview');
     const output = document.getElementById('output');
@@ -8,6 +8,7 @@ window.onload = function() {
     const toggleMathModeButton = document.getElementById('toggleMathMode');
     const processButton = document.querySelector('button[onclick="processImage()"]');
     const detectColorButton = document.querySelector('button[onclick="detectColor()"]');
+    const dropArea = document.getElementById('dropArea');
     let mathMode = false;
     let extractedText = '';
     let loadedImage = null;
@@ -19,24 +20,42 @@ window.onload = function() {
     imageInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file) {
-            const url = URL.createObjectURL(file);
-            preview.src = url;
-            preview.style.display = 'block';
-            loadedImage = file;
-            processButton.disabled = false;
-            detectColorButton.disabled = false;
-            output.textContent = 'O texto extraído aparecerá aqui...';
-            output.classList.remove('error', 'loading');
-        } else {
-            processButton.disabled = true;
-            detectColorButton.disabled = true;
-            preview.src = '';
-            preview.style.display = 'none';
-            loadedImage = null;
+            handleImageFile(file);
         }
     });
 
-    window.toggleMathMode = function() {
+    dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+        dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            handleImageFile(file);
+        } else {
+            output.textContent = 'Por favor, solte uma imagem válida.';
+            output.classList.add('error');
+        }
+    });
+
+    function handleImageFile(file) {
+        const url = URL.createObjectURL(file);
+        preview.src = url;
+        preview.style.display = 'block';
+        loadedImage = file;
+        processButton.disabled = false;
+        detectColorButton.disabled = false;
+        output.innerHTML = 'O texto extraído aparecerá aqui...';
+        output.classList.remove('error', 'loading');
+    }
+    window.toggleMathMode = function () {
         mathMode = !mathMode;
         toggleMathModeButton.textContent = mathMode ? 'Desativar Modo Matemático' : 'Ativar Modo Matemático';
         toggleMathModeButton.classList.toggle('active', mathMode);
@@ -52,21 +71,20 @@ window.onload = function() {
         }
     };
 
-    window.resetFile = function() {
+    window.resetFile = function () {
         imageInput.value = '';
         preview.src = '';
         preview.style.display = 'none';
         loadedImage = null;
         extractedText = '';
-        output.textContent = 'O texto extraído aparecerá aqui...';
+        output.innerHTML = 'O texto extraído aparecerá aqui...';
         output.classList.remove('error', 'loading');
         mathAnswer.textContent = 'A resposta aparecerá aqui...';
         processButton.disabled = true;
         detectColorButton.disabled = true;
-        console.log('Estado resetado com sucesso.');
     };
 
-    window.processImage = async function() {
+    window.processImage = async function () {
         if (!loadedImage) {
             output.textContent = 'Por favor, selecione uma imagem primeiro!';
             output.classList.add('error');
@@ -88,9 +106,6 @@ window.onload = function() {
         output.classList.remove('error');
 
         try {
-            if (typeof Tesseract === 'undefined') {
-                throw new Error('Tesseract.js não está carregado.');
-            }
             const { data: { text } } = await Tesseract.recognize(
                 loadedImage,
                 'eng+chi_sim',
@@ -121,7 +136,7 @@ window.onload = function() {
         }
     };
 
-    window.detectColor = async function() {
+    window.detectColor = async function () {
         if (!loadedImage) {
             output.textContent = 'Por favor, selecione uma imagem primeiro!';
             output.classList.add('error');
@@ -138,60 +153,53 @@ window.onload = function() {
         processButton.disabled = true;
         detectColorButton.disabled = true;
 
-        output.textContent = 'Carregando imagem para detecção de cor...';
+        output.textContent = 'Carregando imagem para detecção de cores...';
         output.classList.add('loading');
         output.classList.remove('error');
 
         try {
-            // Criar um elemento de imagem para carregar a imagem
             const img = new Image();
             img.src = URL.createObjectURL(loadedImage);
-            
-            // Esperar até que a imagem esteja carregada
+
             await new Promise((resolve, reject) => {
                 img.onload = resolve;
                 img.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
             });
 
-            console.log('Imagem carregada com sucesso:', img.width, 'x', img.height);
-
-            // Criar um canvas para desenhar a imagem
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
             const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Não foi possível obter o contexto do canvas.');
-            }
-
-            // Desenhar a imagem no canvas
             ctx.drawImage(img, 0, 0);
 
-            output.textContent = 'Analisando cores...';
+            const step = 5;
+            const uniqueColors = new Set();
 
-            // Ler a cor do pixel no canto superior esquerdo (0,0)
-            const x = 0;
-            const y = 0;
-            console.log(`Amostrando pixel na posição (${x}, ${y})...`);
-            const pixelData = ctx.getImageData(x, y, 1, 1).data;
-            console.log('Dados do pixel:', pixelData);
-
-            const r = pixelData[0];
-            const g = pixelData[1];
-            const b = pixelData[2];
-            if (typeof r === 'undefined' || typeof g === 'undefined' || typeof b === 'undefined') {
-                throw new Error('Falha ao obter os valores de cor do pixel.');
+            for (let y = 0; y < canvas.height; y += step) {
+                for (let x = 0; x < canvas.width; x += step) {
+                    const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+                    if (a < 128) continue;
+                    const hex = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0').toUpperCase();
+                    uniqueColors.add(hex);
+                    if (uniqueColors.size > 100) break;
+                }
+                if (uniqueColors.size > 100) break;
             }
 
-            // Converter para Hex
-            const hex = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
-            console.log(`Cor detectada - Hex: #${hex}, RGB: (${r}, ${g}, ${b})`);
+            if (uniqueColors.size === 0) {
+                throw new Error('Nenhuma cor visível detectada.');
+            }
 
-            output.textContent = `Cor predominante:\nHex: #${hex}\nRGB: (${r}, ${g}, ${b})`;
+            let html = '<strong>Cores detectadas:</strong><br>';
+            uniqueColors.forEach(hex => {
+                html += `<div class="color-box" style="background-color: #${hex};"></div> #${hex}<br>`;
+            });
+
+            output.innerHTML = html;
             output.classList.remove('loading');
         } catch (error) {
-            console.error('Erro ao detectar a cor predominante:', error);
-            output.textContent = 'Erro ao detectar a cor predominante: ' + error.message;
+            console.error('Erro ao detectar as cores:', error);
+            output.textContent = 'Erro ao detectar as cores: ' + error.message;
             output.classList.add('error');
             output.classList.remove('loading');
         } finally {
@@ -201,7 +209,7 @@ window.onload = function() {
         }
     };
 
-    window.answerMathQuestion = function() {
+    window.answerMathQuestion = function () {
         const question = mathQuestion.value.trim();
         if (!question) {
             mathAnswer.textContent = 'Por favor, digite uma pergunta matemática.';
@@ -212,13 +220,12 @@ window.onload = function() {
             if (typeof math === 'undefined') {
                 throw new Error('math.js não está carregado.');
             }
+
             const cleanExpr = question.replace(/\s+/g, '');
             if (/^\d+[+\-*/]\d+$/.test(cleanExpr)) {
                 const evalResult = math.evaluate(cleanExpr);
-                if (typeof evalResult !== 'undefined' && !isNaN(evalResult)) {
-                    mathAnswer.textContent = `Resultado: ${cleanExpr} = ${evalResult}`;
-                    return;
-                }
+                mathAnswer.textContent = `Resultado: ${cleanExpr} = ${evalResult}`;
+                return;
             }
 
             if (question.toLowerCase().includes('quanto é') || question.toLowerCase().includes('qual é')) {
@@ -241,9 +248,9 @@ window.onload = function() {
                 }
             }
 
-            mathAnswer.textContent = 'Desculpe, não consegui entender a pergunta. Tente algo como "Quanto é 2 + 2?" ou "Qual é o resultado do texto?"';
+            mathAnswer.textContent = 'Desculpe, não consegui entender a pergunta.';
         } catch (error) {
-            console.error('Erro ao calcular expressão matemática:', error);
+            console.error('Erro ao calcular:', error);
             mathAnswer.textContent = 'Erro ao calcular: ' + error.message;
         }
     };
