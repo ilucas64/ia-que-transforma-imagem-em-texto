@@ -75,6 +75,30 @@ h1 {
     border-radius: 5px;
     white-space: pre-wrap;
 }
+#chatInteraction {
+    display: none;
+    width: 80%;
+    max-width: 600px;
+    flex-direction: column;
+    gap: 10px;
+}
+#chatInput {
+    width: 100%;
+    min-height: 50px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: vertical;
+}
+#chatOutput {
+    width: 100%;
+    min-height: 100px;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
 button {
     padding: 10px 20px;
     background-color: #007bff;
@@ -96,6 +120,12 @@ button:disabled {
 }
 #toggleMathMode.active:hover {
     background-color: #218838;
+}
+#toggleChatMode.active {
+    background-color: #ff9800;
+}
+#toggleChatMode.active:hover {
+    background-color: #e68a00;
 }
 .color-box {
     display: inline-block;
