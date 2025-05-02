@@ -1,137 +1,233 @@
 body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    margin: 0;
-    background-color: #f0f0f0;
-}
-h1 {
+    font-family: 'Poppins', sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #f0f4ff, #e6e9ff);
     color: #333;
 }
-#imageInput {
-    margin: 20px 0;
+
+.container {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
-#dropArea {
-    border: 2px dashed #007bff;
-    background-color: #e8f0ff;
-    color: #007bff;
-    padding: 20px;
-    margin: 10px;
-    width: 300px;
+
+h1 {
     text-align: center;
+    color: #1a3c87;
+    font-weight: 600;
+    margin-bottom: 30px;
+}
+
+.image-section {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.drop-area {
+    border: 2px dashed #6b7280;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
     border-radius: 10px;
-    transition: background-color 0.3s, border-color 0.3s;
-}
-#dropArea.dragover {
-    background-color: #cce0ff;
-    border-color: #0056b3;
-}
-#preview {
-    max-width: 300px;
-    margin-bottom: 20px;
-}
-#output {
-    width: 80%;
+    background: #f9fafb;
+    width: 100%;
     max-width: 600px;
-    min-height: 100px;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    white-space: pre-wrap;
 }
-#output.error {
-    border-color: #ff0000;
-    color: #ff0000;
+
+.drop-area.dragover {
+    border-color: #3b82f6;
+    background: #e0f2fe;
+    transform: scale(1.02);
 }
-#output.loading {
-    color: #666;
-    font-style: italic;
+
+.drop-area p {
+    margin: 10px 0;
+    color: #4b5563;
 }
-#mathInteraction {
-    display: none;
-    width: 80%;
-    max-width: 600px;
+
+.upload-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 10px;
+    stroke: #3b82f6;
+}
+
+#imageInput {
+    display: block;
+    margin: 10px auto;
+}
+
+.controls {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
-#mathQuestion {
-    width: 100%;
-    min-height: 50px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    resize: vertical;
-}
-#mathAnswer {
-    width: 100%;
-    min-height: 50px;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    white-space: pre-wrap;
-}
-#chatInteraction {
-    display: none;
-    width: 80%;
-    max-width: 600px;
-    flex-direction: column;
-    gap: 10px;
-}
-#chatInput {
-    width: 100%;
-    min-height: 50px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    resize: vertical;
-}
-#chatOutput {
-    width: 100%;
-    min-height: 100px;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    white-space: pre-wrap;
-}
-button {
-    padding: 10px 20px;
-    background-color: #007bff;
+
+.controls button {
+    padding: 8px 12px;
+    background: #3b82f6;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
-    margin: 5px;
+    transition: all 0.3s ease;
+    font-size: 13px;
+    font-weight: 500;
 }
-button:hover {
-    background-color: #0056b3;
-}
-button:disabled {
-    background-color: #cccccc;
+
+.controls button:disabled {
+    background: #d1d5db;
     cursor: not-allowed;
 }
-#toggleMathMode.active {
-    background-color: #28a745;
+
+.controls button:hover:not(:disabled) {
+    background: #2563eb;
+    transform: translateY(-2px);
 }
-#toggleMathMode.active:hover {
-    background-color: #218838;
+
+.filter-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
-#toggleChatMode.active {
-    background-color: #ff9800;
+
+.filter-controls button {
+    padding: 8px 12px;
+    background: #6b7280;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 13px;
+    font-weight: 500;
 }
-#toggleChatMode.active:hover {
-    background-color: #e68a00;
+
+.filter-controls button:hover {
+    background: #4b5563;
+    transform: translateY(-2px);
 }
+
+.output {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    min-height: 100px;
+    transition: all 0.3s ease;
+}
+
+.output.loading {
+    color: #3b82f6;
+    font-style: italic;
+    background: #e0f2fe;
+}
+
+.output.error {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
 .color-box {
     display: inline-block;
     width: 20px;
     height: 20px;
-    border: 1px solid #000;
-    margin-right: 8px;
+    margin-right: 10px;
+    border: 1px solid #111827;
     vertical-align: middle;
+}
+
+.mode-toggle {
+    margin: 30px 0;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.mode-toggle button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#toggleMathMode {
+    background: #22c55e;
+    color: white;
+}
+
+#toggleMathMode.active {
+    background: #16a34a;
+}
+
+#toggleChatMode {
+    background: #f97316;
+    color: white;
+}
+
+#toggleChatMode.active {
+    background: #ea580c;
+}
+
+#toggleMathMode:hover:not(.active), #toggleChatMode:hover:not(.active) {
+    transform: translateY(-2px);
+}
+
+.interaction {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.interaction textarea {
+    width: 100%;
+    height: 100px;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    resize: vertical;
+    font-family: 'Poppins', sans-serif;
+    transition: border-color 0.3s ease;
+}
+
+.interaction textarea:focus {
+    border-color: #3b82f6;
+    outline: none;
+}
+
+.interaction button {
+    align-self: flex-start;
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.interaction button:hover {
+    background: #2563eb;
+}
+
+.interaction div {
+    padding: 15px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    min-height: 50px;
 }
