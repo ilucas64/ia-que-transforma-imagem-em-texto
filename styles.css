@@ -93,30 +93,6 @@ h1 {
     transform: translateY(-2px);
 }
 
-.filter-controls {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.filter-controls button {
-    padding: 8px 12px;
-    background: #6b7280;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.filter-controls button:hover {
-    background: #4b5563;
-    transform: translateY(-2px);
-}
-
 .output {
     margin-top: 20px;
     padding: 15px;

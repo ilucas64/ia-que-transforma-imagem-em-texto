@@ -63,19 +63,12 @@
             <div class="controls">
                 <button onclick="processImage()">Extrair Texto</button>
                 <button onclick="detectColor()">Detectar Cores</button>
-                <button onclick="toggleFilters()">Aplicar Filtros</button>
+                <button onclick="recognizeObjects()">Reconhecer Objetos</button>
                 <button onclick="exportToPDF()">Exportar como PDF</button>
                 <button onclick="resetFile()">Novo Arquivo</button>
             </div>
         </div>
         <img id="preview" style="display: none; max-width: 100%; margin-top: 20px;">
-        <div id="filterControls" class="filter-controls" style="display: none; margin-top: 10px;">
-            <button onclick="applyFilter('sepia')">Sépia</button>
-            <button onclick="applyFilter('grayscale')">Preto e Branco</button>
-            <button onclick="applyFilter('brightness')">Brilho</button>
-            <button onclick="applyFilter('invert')">Inverter Cores</button>
-            <button onclick="applyFilter('none')">Remover Filtro</button>
-        </div>
         <div id="output" class="output">O texto extraído aparecerá aqui...</div>
         <div class="mode-toggle">
             <button id="toggleMathMode" onclick="toggleMathMode()">Ativar Modo Matemático</button>
